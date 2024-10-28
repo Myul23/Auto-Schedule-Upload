@@ -83,7 +83,7 @@ class Schedule_Upload(GoogleAuth):
             # ? upload
             self._event["description"] = sentence
             self._event["start"] = {"dateTime": date.isoformat(), "timeZone": "Asia/Seoul"}
-            self._event["end"] = {"dateTime": (date + timedelta(hours=4)).isoformat(), "timeZone": "Asia/Seoul"}
+            self._event["end"] = {"dateTime": (date + timedelta(hours=3)).isoformat(), "timeZone": "Asia/Seoul"}
             if not self.test_flag:
                 event = self._service.events().insert(calendarId=self._calendarId, body=self._event).execute()
             else:
@@ -116,5 +116,5 @@ class Schedule_Upload(GoogleAuth):
 
 
 if __name__ == "__main__":
-    image_pathes = ["test/2022.02.02.jpeg"]
-    Schedule_Upload(True).scheduling(image_pathes=image_pathes)
+    image_pathes = ["test/2022.09.21.jpeg"]
+    Schedule_Upload().scheduling(image_pathes=image_pathes)

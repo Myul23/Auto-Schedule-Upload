@@ -1,3 +1,4 @@
+from os import getenv
 from os.path import exists
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -28,8 +29,7 @@ class GoogleAuth:
                     token.write(creds.to_json())
 
             self._service = build("calendar", "v3", credentials=creds)
-            with open("calendarid.txt", "w") as tf:
-                self._calendarId = tf.read().rsplit("\n", 1)[0]
+            self._calendarId = getenv("CALENDAR_ID")
         except:
             print("Google Authorization Fail")
             exit(1)

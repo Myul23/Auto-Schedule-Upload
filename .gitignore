@@ -4,7 +4,7 @@ __pycache__
 # auth
 credentials.json
 token.json
-calendarid.txt
+.env
 
 game_list.txt
 
