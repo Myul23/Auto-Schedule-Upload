@@ -1,5 +1,6 @@
-from os import remove
+from os import mkdir, remove
 from os.path import exists, basename, splitext
+from shutil import move
 from datetime import datetime, timedelta
 from warnings import filterwarnings
 
@@ -21,6 +22,12 @@ class Schedule_Upload(GoogleAuth):
         self.__ocr = PaddleOCR(lang="korean")
         self.__datetime_number = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6, "AM": 0, "PM": 12}
         self.__dump_file_name = "test.jpg"
+
+        # * save recognition data
+        self.save_file = "better_recognition.csv"
+        self.save_folder = "better recognition"
+        if not exists(self.save_folder):
+            mkdir(self.save_folder)
 
     def __days_boxing(self, contour) -> bool:
         try:
@@ -60,6 +67,33 @@ class Schedule_Upload(GoogleAuth):
             )
         return sentence
 
+    def validate_recognition(self, event: dict) -> dict:
+        # * start
+        print(f'Start    : {datetime.strftime(datetime.strptime(event["start"]["dateTime"], "%Y-%m-%dT%H:%M:%S"), "%Y.%m.%d %Hh")}')
+        start = datetime.strptime(
+            input("New input: ") or datetime.strftime(datetime.strptime(event["start"]["dateTime"], "%Y-%m-%dT%H:%M:%S"), "%Y.%m.%d %Hh"),
+            "%Y.%m.%d %Hh",
+        ).isoformat()
+
+        # * description
+        print("Description: ", event["description"])
+        description = input("New input  : ") or event["description"]
+
+        # ? save if different
+        if description != event["description"] or start != event["start"]["dateTime"]:
+            new_path = f'{self.save_folder}/{datetime.strftime(datetime.now(), "%Y.%m.%d_%S")}.jpg'
+            move(self.__dump_file_name, new_path)
+
+            texts = "\t".join([new_path, event["description"], description])
+            if not exists(self.save_file):
+                texts = "\n".join(["\t".join(["image_path", "before", "after"]), texts])
+            with open(self.save_file, "a") as tf:
+                tf.write(texts)
+
+        event["start"]["dateTime"] = start
+        event["description"] = description
+        return event
+
     def __schedule_upload(self, image_path: str, contour) -> None:
         if not self.__days_boxing(contour):
             return
@@ -80,10 +114,13 @@ class Schedule_Upload(GoogleAuth):
             date = date + timedelta(hours=int(texts.pop().split(":", 1)[0]) + self.__datetime_number[texts.pop()])
             sentence = self.construct_sentences(texts)
 
-            # ? upload
+            # * construct event
             self._event["description"] = sentence
             self._event["start"] = {"dateTime": date.isoformat(), "timeZone": "Asia/Seoul"}
             self._event["end"] = {"dateTime": (date + timedelta(hours=3)).isoformat(), "timeZone": "Asia/Seoul"}
+
+            # ? upload
+            self._event = self.validate_recognition(self._event)
             if not self.test_flag:
                 event = self._service.events().insert(calendarId=self._calendarId, body=self._event).execute()
             else:
@@ -116,5 +153,5 @@ class Schedule_Upload(GoogleAuth):
 
 
 if __name__ == "__main__":
-    image_pathes = ["test/2022.09.21.jpeg"]
-    Schedule_Upload().scheduling(image_pathes=image_pathes)
+    image_pathes = ["test/2024.10.21.jpeg"]  # 2022.09.21
+    Schedule_Upload(True).scheduling(image_pathes=image_pathes)

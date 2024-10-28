@@ -6,12 +6,15 @@ credentials.json
 token.json
 .env
 
-game_list.txt
-
 # custom model
 codes
 YOLO-find_jamoes
 test
+
+# validate
+better recognition
+better_recognition.csv
+game_list.txt
 
 # test
 quickstart.py
