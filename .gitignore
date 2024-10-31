@@ -17,5 +17,4 @@ better_recognition.csv
 game_list.txt
 
 # test
-quickstart.py
-paddle_ocr_test.ipynb
+*_test.*
