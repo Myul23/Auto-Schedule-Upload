@@ -13,8 +13,6 @@ test
 
 # validate
 better recognition
-better_recognition.csv
-game_list.txt
 
 # test
 *_test.*

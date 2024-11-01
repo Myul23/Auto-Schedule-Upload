@@ -10,7 +10,7 @@ from cv2 import COLOR_BGR2GRAY, COLOR_BGR2RGB, ADAPTIVE_THRESH_GAUSSIAN_C, THRES
 from cv2 import imread, cvtColor, adaptiveThreshold, arcLength, approxPolyDP, boundingRect, findContours, imwrite
 from paddleocr import PaddleOCR
 
-from gradio import Blocks, Row, Column, Image, Text, Button, close_all
+from gradio import Blocks, Row, Column, Markdown, Image, Text, Button, close_all
 
 filterwarnings(action="ignore")
 
@@ -92,14 +92,22 @@ class Schedule_Upload(GoogleAuth):
         # * days of week
         days = "MON"
         for idx in range(len(texts)):
-            if texts[idx] in self.__datetime_number.keys():
+            if texts[idx] in list(self.__datetime_number.keys())[:-2]:
                 days = texts.pop(idx)
                 break
         texts.insert(0, days)
 
+        # * date
+        date = "07/31"
+        for idx in range(1, len(texts)):
+            if "/" in texts[idx]:
+                date = texts.pop(idx)
+                break
+        texts.insert(1, date)
+
         # * meridiem
         meridiem = "PM"
-        for idx in range(len(texts)):
+        for idx in range(2, len(texts)):
             if texts[idx] in ["AM", "PM"]:
                 meridiem = texts.pop(idx)
                 break
@@ -107,7 +115,7 @@ class Schedule_Upload(GoogleAuth):
 
         # * time
         time = "9:00"
-        for idx in range(len(texts)):
+        for idx in range(2, len(texts)):
             if ":" in texts[idx]:
                 time = texts.pop(idx)
                 break
@@ -115,7 +123,8 @@ class Schedule_Upload(GoogleAuth):
 
         return texts
 
-    def validate_recognition(self, texts: list, original_image_flag: bool = False, self_close_flag: bool = False) -> list:
+    def validate_recognition(self, file_name: str, texts: list, original_image_flag: bool = False, self_close_flag: bool = False) -> list:
+        self.__temp = texts
         try:
             with Blocks(analytics_enabled=False) as show:
 
@@ -130,33 +139,32 @@ class Schedule_Upload(GoogleAuth):
                         texts = "\n".join(["\t".join(["image_path", "before", "after"]), texts])
                     with open(self.save_file, "a", encoding="UTF-8") as tf:
                         tf.write(texts)
+                    self.__temp = after.split()
 
                     if self_close_flag:
                         show.close()
                         close_all()
-                    return Text(value=after, visible=False)
 
+                # * construct
                 with Row():
-                    _ = Image(cvtColor(self.__image, COLOR_BGR2RGB), visible=original_image_flag)
-
+                    Image(cvtColor(self.__image, COLOR_BGR2RGB), visible=original_image_flag)
+                    Markdown(f"Schedule for {file_name}")
                 with Row():
                     with Column():
-                        _ = Image(cvtColor(self.__crop, COLOR_BGR2RGB))
+                        Image(cvtColor(self.__crop, COLOR_BGR2RGB))
                     with Column():
                         date = Text(label="date", value=texts[0] + " " + texts[1])
                         time = Text(label="time", value=texts[-2] + " " + texts[-1])
                         description = Text(label="description", value=" ".join(texts[2:-2]))
-
                 with Row():
                     btn = Button("Save")
 
-                texts = Text(value=" ".join(texts), visible=False)
-                btn.click(save_data, [texts, date, time, description], texts, preprocess=False)
+                btn.click(save_data, [Text(value=" ".join(texts), visible=False), date, time, description], None, preprocess=False)
             show.launch()
         except Exception as e:
             print("Recognition Validation Fail")
             print(e)
-        return texts.value.split(" ")
+        return self.__temp
 
     def __schedule_upload(self, image_path: str, contour) -> None:
         if not self.__days_boxing(contour):
@@ -170,11 +178,12 @@ class Schedule_Upload(GoogleAuth):
 
             texts = [text for _, (text, _) in result[0]]
             texts = self.sorting(texts)
-            texts = self.validate_recognition(texts)
+            file_name, _ = splitext(basename(image_path))
+            texts = self.validate_recognition(file_name, texts)
 
             # * date
-            file_name, _ = splitext(basename(image_path))
             date = datetime.strptime(file_name, "%Y.%m.%d") + timedelta(days=self.__datetime_number[texts.pop(0)])
+            print(date, datetime.strptime(file_name.split(".", 1)[0] + "/" + texts[0], "%Y/%m/%d"))
             assert date == datetime.strptime(file_name.split(".", 1)[0] + "/" + texts.pop(0), "%Y/%m/%d")
 
             # * time
