@@ -1,18 +1,19 @@
 __pycache__
-.vscode
 
 # auth
 credentials.json
 token.json
 .env
 
+# data
+Schedules
+
 # custom model
 codes
 YOLO-find_jamoes
-test
 
-# validate
+# validate & collecting data
 better recognition
 
 # test
-*_test.*
+*test*

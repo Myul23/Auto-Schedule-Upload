@@ -7,8 +7,8 @@ from googleapiclient.discovery import build
 
 
 class GoogleAuth:
-    def __init__(self, test_flag: bool = False):
-        if not test_flag:
+    def __init__(self, upload_flag: bool = True):
+        if upload_flag:
             self.__auth_init()
         self.__default_event()
 

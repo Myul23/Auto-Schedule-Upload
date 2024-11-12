@@ -1,5 +1,6 @@
 from os import mkdir, remove
 from os.path import exists, basename, splitext
+from glob import glob
 from datetime import datetime, timedelta
 from warnings import filterwarnings
 
@@ -10,16 +11,16 @@ from cv2 import COLOR_BGR2GRAY, COLOR_BGR2RGB, ADAPTIVE_THRESH_GAUSSIAN_C, THRES
 from cv2 import imread, cvtColor, adaptiveThreshold, arcLength, approxPolyDP, boundingRect, findContours, imwrite
 from paddleocr import PaddleOCR
 
-from gradio import Blocks, Row, Column, Markdown, Image, Text, Button, close_all
+from gradio import Blocks, Row, Column, Markdown, Image, Text, Checkbox, Button, close_all
 
 filterwarnings(action="ignore")
 
 
 class Schedule_Upload(GoogleAuth):
-    def __init__(self, test_flag: bool = False):
-        self.test_flag = test_flag
+    def __init__(self, upload_flag: bool = True):
+        self.upload_flag = upload_flag
 
-        super().__init__(self.test_flag)
+        super().__init__(self.upload_flag)
         self.__ocr = PaddleOCR(lang="korean", show_log=False)
         self.__datetime_number = {
             "MON": 0,
@@ -75,8 +76,8 @@ class Schedule_Upload(GoogleAuth):
 
     def construct_sentences(self, texts: list, link_flag: bool = False) -> str:
         sentence = " ".join(texts)
-        if sentence == "CGRN LIVE":
-            sentence += " 🎖"
+        # if sentence == "CGRN LIVE":
+        #     sentence += " 🎖"
         if link_flag:
             sentence = "\n".join(
                 [
@@ -88,7 +89,7 @@ class Schedule_Upload(GoogleAuth):
             )
         return sentence
 
-    def sorting(self, texts: list) -> list:
+    def sorting(self, file_date: datetime, texts: list) -> list:
         # * days of week
         days = "MON"
         for idx in range(len(texts)):
@@ -103,6 +104,8 @@ class Schedule_Upload(GoogleAuth):
             if "/" in texts[idx]:
                 date = texts.pop(idx)
                 break
+        else:
+            date = datetime.strftime(file_date + timedelta(days=self.__datetime_number[days]), "%m/%d")
         texts.insert(1, date)
 
         # * meridiem
@@ -119,6 +122,8 @@ class Schedule_Upload(GoogleAuth):
             if ":" in texts[idx]:
                 time = texts.pop(idx)
                 break
+        else:
+            self.upload_flag = False
         texts.append(time)
 
         return texts
@@ -128,18 +133,19 @@ class Schedule_Upload(GoogleAuth):
         try:
             with Blocks(analytics_enabled=False) as show:
 
-                def save_data(texts, date, time, description):
+                def save_data(texts, date, time, description, flag) -> None:
                     # * image
-                    new_path = f'{self.save_folder}/{datetime.strftime(datetime.now(), "%Y.%m.%d_%S")}.jpg'
+                    new_path = f'{self.save_folder}/{datetime.strftime(datetime.now(), "%Y.%m.%d_%H.%M.%S")}.jpg'
                     imwrite(new_path, self.__crop)
 
                     after = " ".join([date, description, time])
-                    texts = "\t".join([new_path, texts, after]) + "\n"
+                    texts = "\t".join([new_path, texts, after, str(flag)]) + "\n"
                     if not exists(self.save_file):
-                        texts = "\n".join(["\t".join(["image_path", "before", "after"]), texts])
+                        texts = "\n".join(["\t".join(["image_path", "before", "after", "upload_flag"]), texts])
                     with open(self.save_file, "a", encoding="UTF-8") as tf:
                         tf.write(texts)
                     self.__temp = after.split()
+                    self.upload_flag = flag
 
                     if self_close_flag:
                         show.close()
@@ -156,10 +162,11 @@ class Schedule_Upload(GoogleAuth):
                         date = Text(label="date", value=texts[0] + " " + texts[1])
                         time = Text(label="time", value=texts[-2] + " " + texts[-1])
                         description = Text(label="description", value=" ".join(texts[2:-2]))
+                        flag = Checkbox(label="upload flag", value=self.upload_flag)
                 with Row():
                     btn = Button("Save")
 
-                btn.click(save_data, [Text(value=" ".join(texts), visible=False), date, time, description], None, preprocess=False)
+                btn.click(save_data, [Text(value=" ".join(texts), visible=False), date, time, description, flag], None, preprocess=False)
             show.launch()
         except Exception as e:
             print("Recognition Validation Fail")
@@ -177,13 +184,14 @@ class Schedule_Upload(GoogleAuth):
                 return
 
             texts = [text for _, (text, _) in result[0]]
-            texts = self.sorting(texts)
             file_name, _ = splitext(basename(image_path))
+            date = datetime.strptime(file_name, "%Y.%m.%d")
+
+            texts = self.sorting(date, texts)
             texts = self.validate_recognition(file_name, texts)
 
             # * date
-            date = datetime.strptime(file_name, "%Y.%m.%d") + timedelta(days=self.__datetime_number[texts.pop(0)])
-            print(date, datetime.strptime(file_name.split(".", 1)[0] + "/" + texts[0], "%Y/%m/%d"))
+            date += timedelta(days=self.__datetime_number[texts.pop(0)])
             assert date == datetime.strptime(file_name.split(".", 1)[0] + "/" + texts.pop(0), "%Y/%m/%d")
 
             # * time
@@ -197,7 +205,7 @@ class Schedule_Upload(GoogleAuth):
             self._event["end"] = {"dateTime": (date + timedelta(hours=3)).isoformat(), "timeZone": "Asia/Seoul"}
 
             # ? upload
-            if not self.test_flag:
+            if self.upload_flag:
                 _ = self._service.events().insert(calendarId=self._calendarId, body=self._event).execute()
             else:
                 print(f'{self._event["start"]}:\t{self._event["description"]}')
@@ -229,5 +237,5 @@ class Schedule_Upload(GoogleAuth):
 
 
 if __name__ == "__main__":
-    image_pathes = ["test/2022.09.21.jpeg"]
-    Schedule_Upload(True).scheduling(image_pathes=image_pathes)
+    image_pathes = ["Schedules/2022.09.21.jpeg"]
+    Schedule_Upload().scheduling(image_pathes=image_pathes)
