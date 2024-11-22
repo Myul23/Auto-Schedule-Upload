@@ -195,7 +195,8 @@ class Schedule_Upload(GoogleAuth):
             assert date == datetime.strptime(file_name.split(".", 1)[0] + "/" + texts.pop(0), "%Y/%m/%d")
 
             # * time
-            date = date + timedelta(hours=int(texts.pop().split(":", 1)[0]) + self.__datetime_number[texts.pop()])
+            hour_minute = texts.pop().split(":", 1)
+            date = date + timedelta(hours=int(hour_minute[0]) + self.__datetime_number[texts.pop()], minutes=int(hour_minute[1]))
 
             sentence = self.construct_sentences(texts)
 
