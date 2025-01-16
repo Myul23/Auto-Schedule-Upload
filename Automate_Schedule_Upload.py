@@ -257,7 +257,7 @@ class Schedule_Upload(GoogleAuth):
             contours, hierarachies = findContours(skeleton, RETR_CCOMP, CHAIN_APPROX_SIMPLE)
             for contour, hierarchy in zip(contours, hierarachies[0]):
                 if sum([h == -1 for h in hierarchy]) < 2:
-                    self.__schedule_upload(image_path, contour, hierarchy)
+                    self.__schedule_upload(image_path, contour)
 
             if exists(self.__dump_file_name):
                 remove(self.__dump_file_name)
