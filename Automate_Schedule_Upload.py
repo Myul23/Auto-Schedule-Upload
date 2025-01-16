@@ -7,9 +7,30 @@ from warnings import filterwarnings
 from google_authorization import GoogleAuth
 
 # image processing
-from cv2 import COLOR_BGR2GRAY, COLOR_BGR2RGB, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE
-from cv2 import imread, cvtColor, adaptiveThreshold, arcLength, approxPolyDP, boundingRect, findContours, imwrite
+from cv2 import (
+    COLOR_BGR2GRAY,
+    COLOR_BGR2RGB,
+    MORPH_RECT,
+    ADAPTIVE_THRESH_GAUSSIAN_C,
+    THRESH_BINARY,
+    MORPH_CLOSE,
+    RETR_CCOMP,
+    CHAIN_APPROX_SIMPLE,
+)
+from cv2 import (
+    imread,
+    cvtColor,
+    getStructuringElement,
+    adaptiveThreshold,
+    arcLength,
+    morphologyEx,
+    approxPolyDP,
+    boundingRect,
+    findContours,
+    imwrite,
+)
 from paddleocr import PaddleOCR
+
 
 from gradio import Blocks, Row, Column, Markdown, Image, Text, Checkbox, Button, close_all
 
@@ -41,6 +62,7 @@ class Schedule_Upload(GoogleAuth):
             "PM": 12,
             # lambda x: (ord(x[0]) - 97) // 12 * 12) 1, 16
         }
+        self.__datetime_number_list = list(self.__datetime_number.keys())
         self.__dump_file_name = "test.jpg"
 
         # * save recognition data
@@ -58,7 +80,7 @@ class Schedule_Upload(GoogleAuth):
 
             x, y, w, h = boundingRect(contour)
             area = [w * h, self.__binary.shape[0] * self.__binary.shape[1]]
-            if len(approx) != 4 or area[0] < area[1] / 100 or area[0] > area[1] / 5:
+            if len(approx) != 4 or area[0] < area[1] / 200 or area[0] > area[1] / 5:
                 return False
 
             vertex = [[], []]
@@ -93,7 +115,7 @@ class Schedule_Upload(GoogleAuth):
         # * days of week
         days = "MON"
         for idx in range(len(texts)):
-            if texts[idx] in list(self.__datetime_number.keys())[:-2]:
+            if texts[idx] in self.__datetime_number_list[:-2]:
                 days = texts.pop(idx)
                 break
         texts.insert(0, days)
@@ -184,6 +206,7 @@ class Schedule_Upload(GoogleAuth):
                 return
 
             texts = [text for _, (text, _) in result[0]]
+
             file_name, _ = splitext(basename(image_path))
             date = datetime.strptime(file_name, "%Y.%m.%d")
 
@@ -192,18 +215,18 @@ class Schedule_Upload(GoogleAuth):
 
             # * date
             date += timedelta(days=self.__datetime_number[texts.pop(0)])
-            assert date == datetime.strptime(file_name.split(".", 1)[0] + "/" + texts.pop(0), "%Y/%m/%d")
 
             # * time
             hour_minute = texts.pop().split(":", 1)
             date = date + timedelta(hours=int(hour_minute[0]) + self.__datetime_number[texts.pop()], minutes=int(hour_minute[1]))
+            finish_date = date + timedelta(hours=3)
 
             sentence = self.construct_sentences(texts)
 
             # * construct event
             self._event["description"] = sentence
             self._event["start"] = {"dateTime": date.isoformat(), "timeZone": "Asia/Seoul"}
-            self._event["end"] = {"dateTime": (date + timedelta(hours=3)).isoformat(), "timeZone": "Asia/Seoul"}
+            self._event["end"] = {"dateTime": finish_date.isoformat(), "timeZone": "Asia/Seoul"}
 
             # ? upload
             if self.upload_flag:
@@ -227,10 +250,14 @@ class Schedule_Upload(GoogleAuth):
 
             self.__binary = cvtColor(self.__image, COLOR_BGR2GRAY)
             skeleton = adaptiveThreshold(self.__binary, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 7, -3)
-            contours, _ = findContours(skeleton, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)
 
-            for contour in contours:
-                self.__schedule_upload(image_path, contour)
+            k = getStructuringElement(MORPH_RECT, (7, 7))
+            skeleton = morphologyEx(skeleton, MORPH_CLOSE, k)
+
+            contours, hierarachies = findContours(skeleton, RETR_CCOMP, CHAIN_APPROX_SIMPLE)
+            for contour, hierarchy in zip(contours, hierarachies[0]):
+                if sum([h == -1 for h in hierarchy]) < 2:
+                    self.__schedule_upload(image_path, contour, hierarchy)
 
             if exists(self.__dump_file_name):
                 remove(self.__dump_file_name)
@@ -238,5 +265,5 @@ class Schedule_Upload(GoogleAuth):
 
 
 if __name__ == "__main__":
-    image_pathes = ["Schedules/2022.09.21.jpeg"]
+    image_pathes = glob("Schedules/*")  # ["2022.09.21.jpeg"]
     Schedule_Upload().scheduling(image_pathes=image_pathes)
