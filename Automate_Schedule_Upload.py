@@ -221,7 +221,7 @@ class Schedule_Upload(GoogleAuth):
             date = date + timedelta(hours=int(hour_minute[0]) + self.__datetime_number[texts.pop()], minutes=int(hour_minute[1]))
             finish_date = date + timedelta(hours=3)
 
-            sentence = self.construct_sentences(texts)
+            sentence = self.construct_sentences(texts[1:])
 
             # * construct event
             self._event["description"] = sentence
